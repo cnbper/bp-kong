@@ -1,0 +1,14 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: bookinfo
+  namespace: istio-samples
+spec:
+  rules:
+  - host: bookinfo.cmft.com
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: productpage
+          servicePort: 9080
