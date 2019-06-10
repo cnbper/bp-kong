@@ -4,9 +4,40 @@
 <https://github.com/PGBI/kong-dashboard>
 <https://docs.konghq.com/install/kubernetes/>
 
-## all-in-one-postgres.yaml 文件调整
+## 基于 all-in-one-dbless.yaml 安装
+
+<github.com/Kong/kubernetes-ingress-controller/deploy/single/all-in-one-dbless.yaml>
+
+### 文件调整
+
+- 镜像调整
+- 由于没有 LoadBalance，将 kong-proxy 的 svc 修改 nodePort
+  - Service:kong-proxy  type: LoadBalancer -> NodePort
+- 打开 KONG_PROXY_LOG
+  - containers : kong-proxy
+
+```shell
+        - name: KONG_PROXY_ACCESS_LOG
+          value: "/dev/stdout"
+        - name: KONG_PROXY_ERROR_LOG
+          value: "/dev/stderr"
+```
+
+### 安装
+
+```shell
+# 安装
+kubectl apply -f $GOPATH/src/github.com/kong/kubernetes-ingress-controller/deploy/single/all-in-one-dbless.yaml
+
+# 卸载
+kubectl delete -f $GOPATH/src/github.com/kong/kubernetes-ingress-controller/deploy/single/all-in-one-dbless.yaml
+```
+
+## 基于 all-in-one-postgres.yaml 安装
 
 <github.com/Kong/kubernetes-ingress-controller/deploy/single/all-in-one-postgres.yaml>
+
+### 文件调整
 
 - 镜像调整
 - 由于没有 LoadBalance，将 kong-proxy 的 svc 修改 nodePort
@@ -32,27 +63,41 @@
         emptyDir: {}
 ```
 
-## 安装
+### 安装
 
 ```shell
 # 安装
 kubectl apply -f $GOPATH/src/github.com/kong/kubernetes-ingress-controller/deploy/single/all-in-one-postgres.yaml
 
+# 卸载
+kubectl delete -f $GOPATH/src/github.com/kong/kubernetes-ingress-controller/deploy/single/all-in-one-postgres.yaml
+```
+
+## 验证安装
+
+```shell
 # 验证
 kubectl -n kong get pod -o wide
 kubectl -n kong get svc -o wide
-# 获取kong地址
-kubectl -n kong get pod -l app=kong -o jsonpath="{.items[0].status.hostIP}"
+# 进入 proxy 容器
+kubectl -n kong exec -it \
+  $(kubectl -n kong get pod -l app=kong -o jsonpath='{.items[0].metadata.name}') \
+  -c proxy sh
+# curl -i -X GET --url httpbin.default:8000/ip
+
+# 获取kong访问端口
 kubectl -n kong get service kong-proxy -o jsonpath='{.spec.ports[?(@.name=="kong-proxy")].nodePort}'
 
-# 卸载
-kubectl delete -f $GOPATH/src/github.com/kong/kubernetes-ingress-controller/deploy/single/all-in-one-postgres.yaml
+# 查看代理日志
+kubectl -n kong logs -f \
+  $(kubectl -n kong get pod -l app=kong -o jsonpath='{.items[0].metadata.name}') \
+  -c proxy
 ```
 
 ## 部署微服务
 
 ```shell
-cd /Users/zhangbaohao/workspace/cloud-native
+cd /Users/zhangbaohao/repository/github.com/cnbper/bp-kubernetes
 kubectl apply -f examples/httpbin/httpbin.yaml
 kubectl apply -f examples/httpbin/httpbin-ingress.yaml
 
@@ -61,7 +106,11 @@ kubectl get pod -o wide
 kubectl get svc -o wide httpbin
 kubectl get ing httpbin
 
-curl -i -X GET --url http://172.17.8.102:30316/ip --header 'HOST: httpbin.sloth.com'
+curl -i -X GET --url http://172.17.8.102:31516/ip --header 'HOST: httpbin.sloth.com'
+
+# 清除数据
+kubectl delete -f examples/httpbin/httpbin-ingress.yaml
+kubectl delete -f examples/httpbin/httpbin.yaml
 ```
 
 ## postgres
